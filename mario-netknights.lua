@@ -8,6 +8,12 @@ Filename = "DP1.state"
     "Right",
   }
 
+  BoxRadius = 6
+  InputSize = (BoxRadius*2+1)*(BoxRadius*2+1)
+
+  Inputs = InputSize+1
+  Outputs = #ButtonNames
+  MaxNeuron = 1000000
 ---------------------------- INPUT------------------------------
 function getPositions()
 	marioX = memory.read_s16_le(0x94)
@@ -89,10 +95,26 @@ function getInputs()
 
 --poppe
 function new_neuron()
+  local neuron = {}
+  neuron.connections = {}
+  neuron.weight = 0.0
+  return neuron
 --create neuron here and return
 end
 --poppe
+
+
 function new_neural_network()
+  local neural_network = {}
+  neural_network.neurons = {}
+
+  for i = 1, Inputs do
+    neural_network.neurons[i] = new_neuron()
+  end
+
+  for i = 1, Outputs do
+    network.neurons[MaxNeuron+i] = new_neuron()
+  end
 --create neural network :)
 end
 
