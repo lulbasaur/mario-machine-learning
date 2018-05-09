@@ -85,6 +85,17 @@ function getInputs()
 		end
 	end
 
+--poppe
+function new_neuron()
+--create neuron here and return
+end
+--poppe
+function new_neural_network()
+--create neural network :) 
+end
+
+
+
 while true do
 
   emu.frameadvance()
