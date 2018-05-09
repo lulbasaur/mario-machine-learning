@@ -1,3 +1,5 @@
+-- Bra bok
+-- www.cs.uni.edu/~schafer/4620/readings/Ai%20Techniques%20For%20Game%20Programming.pdf
 Filename = "DP1.state"
   ButtonNames = {
     "A",
