@@ -6,13 +6,12 @@ Filename = "DP1.state"
     "Right",
   }
 
+---------------------------- INPUT------------------------------
 function getPositions()
 	marioX = memory.read_s16_le(0x94)
 	marioY = memory.read_s16_le(0x96)
-
 	local layer1x = memory.read_s16_le(0x1A);
 	local layer1y = memory.read_s16_le(0x1C);
-
 	screenX = marioX-layer1x
 	screenY = marioY-layer1y
 end
@@ -85,13 +84,14 @@ function getInputs()
 		end
 	end
 
+
 --poppe
 function new_neuron()
 --create neuron here and return
 end
 --poppe
 function new_neural_network()
---create neural network :) 
+--create neural network :)
 end
 
 
