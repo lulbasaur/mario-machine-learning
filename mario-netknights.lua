@@ -13,7 +13,9 @@ FILENAME = "DP1.state"
 --13*13 + 1 = 170
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
-  HIDDENNODES=87
+  HIDDENNODES = 87
+  HIDDENLAYERS = 2
+  LAYERS = HIDDENLAYERS + 2
   MAXNEURON = 1000000
 ---------------------------- INPUT------------------------------
 function get_positions()
@@ -88,6 +90,7 @@ function get_inputs()
 			end
 		end
 	end
+  return inputs
 end
 ------------------MATH-----------------------------------------
 
@@ -99,46 +102,116 @@ end
 ---------------------ANN--------------------------------------
 function new_neuron()
   local neuron = {}
-  neuron.incoming_connections = {}
   neuron.value = 0.0
   return neuron
---create neuron here and return
 end
 
 
+function new_weight_matrix(inn,outn)
+  local weight_matrix = {}
+  for i=1,inn do
+    weight_matrix[i] = {}
+    for j=1,outn do
+      weight_matrix[i][j] = math.random()
+    end
+  end
+  return weight_matrix
+end
 
 function new_neural_network()
   local neural_network = {}
-  neural_network.neurons = {}
-  neural_network.hidden_neurons = {}
+  -- input neuron array
+  neural_network.input_neurons = {}
+  --hidden layer array of neuron arrays
+  neural_network.hidden_layers = {}
+  for i=1,HIDDENLAYERS do
+    neural_network.hidden_layers[i] = {}
+  end
+  -- output neuron array
   neural_network.outputs = {}
-  neural_network.weights_in_to_hidden = {}
-  neural_network.weights_hidden_to_out = {}
+
+  --weight array of arrays
+  neural_network.weights = {}
+  for i=1,LAYERS-1 do
+    neural_network.weights[i] = {}
+  end
+
+  --INPUT NEURONS
   for i = 1,INPUTS do
-    neural_network.neurons[i] = new_neuron()
+    neural_network.input_neurons[i] = new_neuron()
   end
-  for i=1,HIDDENNODES do
-    neural_network.hidden_neurons[i] = new_neuron()
-  end
-  for i = 1,OUTPUTS do
-    network.neurons[i] = new_neuron()
-  end
-  --init weights input to hidden
-  for i=1,INPUTS do
+
+  --HIDDEN LAYERS
+  for i=1,HIDDENLAYERS do
     for j=1,HIDDENNODES do
-      weights_in_to_hidden[i][j] = math.random()
+      neural_network.hidden_layers[i][j] = new_neuron()
     end
   end
+
+  --OUTPUT NEURONS
+  for i = 1,OUTPUTS do
+    neural_network.outputs[i] = new_neuron()
+  end
+
   --init weights hidden to output
-  for i=1,HIDDENNODES do
-    for j=1,OUTPUTS do
-      weights_hidden_to_out[i][j] = math.random()
-    end
-  end
+  neural_network.weights[1] = new_weight_matrix(INPUTS,HIDDENNODES)
+  neural_network.weights[2] = new_weight_matrix(HIDDENNODES,HIDDENNODES)
+  neural_network.weights[3] = new_weight_matrix(HIDDENNODES,OUTPUTS)
+
+  return neural_network
 end
 
-function build_neural_connections()
+function evaluate_network(network,inputs)
+  --inputs is from get_inputs
+  --init inputs
+  for i=1,INPUTS do
+    network.input_neurons[i].value = inputs[i]
+  end
 
+  --update hidden layer values
+  for i=1,HIDDENNODES do
+    for j=1,INPUTS-1 do
+      local current_in_value = network.input_neurons[j].value
+      local current_weight_value = network.weights[1][j][i]
+      local old = network.hidden_layers[1][i].value
+      network.hidden_layers[1][i].value = old + current_in_value * current_weight_value
+    end
+    network.hidden_layers[1][i].value = sigmoid(network.hidden_layers[1][i].value)
+  end
+
+  --update hidden layer values
+  for i=1,HIDDENNODES do --l2
+    for j=1,HIDDENNODES do --l1
+      local current_in_value = network.hidden_layers[1][j].value
+      local current_weight_value = network.weights[2][j][i]
+      local old = network.hidden_layers[2][i].value
+      network.hidden_layers[2][i].value = old + current_in_value * current_weight_value
+    end
+    network.hidden_layers[2][i].value = sigmoid(network.hidden_layers[2][i].value)
+  end
+
+  --update hidden layer values
+  for i=1,OUTPUTS do
+    for j=1,HIDDENNODES do
+      local current_in_value = network.hidden_layers[2][j].value
+      local current_weight_value = network.weights[3][j][i]
+      local old = network.outputs[i].value
+      network.outputs[i].value = old + current_in_value * current_weight_value
+    end
+    network.outputs[i].value = sigmoid(network.outputs[i].value)
+  end
+
+  local outputs = {}
+  for o=1,OUTPUTS do
+    local button = "P1 " .. BUTTONNAMES[o]
+    if network.input_neurons[o].value > 0 then
+      outputs[button] = true
+    else
+      outputs[button] = false
+    end
+  end
+
+  return outputs
 end
 
 function new_genome()
@@ -146,11 +219,6 @@ function new_genome()
   genome.network = {}
   genome.fitness = 0
   genom.rank = 0
-end
-
-function evaluate_network()
-  local current_outputs = {false,false,false,true}
-  return current_outputs
 end
 
 function clear_joypad()
@@ -161,39 +229,30 @@ function clear_joypad()
 	joypad.set(controller)
 end
 
---set current action
-function evaluate_current()
-	inputs = get_inputs()
-	controller = evaluate_network()
-	if controller["P1 Left"] and controller["P1 Right"] then
-		controller["P1 Left"] = false
-		controller["P1 Right"] = false
-	end
-	if controller["P1 Up"] and controller["P1 Down"] then
-		controller["P1 Up"] = false
-		controller["P1 Down"] = false
-	end
-	joypad.set(controller)
+
+local clock = os.clock
+function sleep(n)  -- seconds
+  local t0 = clock()
+  while clock() - t0 <= n do end
 end
 
+function test()
+  --sleep(1)
+  local nn = new_neural_network()
+  local current_inputs = get_inputs()
+  local outputs = evaluate_network(nn,current_inputs)
+  return outputs
+end
 
 savestate.load(FILENAME);
 while true do
-	--clear_joypad()
-	--generateNetwork(genome)
+	clear_joypad()
+  outputs = test()
+  print(outputs)
 
-  local outputs = {}
-  for o=1,OUTPUTS do
-		local button = "P1 " .. BUTTONNAMES[o]
-		outputs[button] = false
-	end
-  button = "P1 " .. BUTTONNAMES[4]
-  outputs[button] = true
-	evaluate_current()
 
   controller = outputs
   joypad.set(controller)
-  print(outputs)
   emu.frameadvance()
   console.writeline("newframe")
 end
