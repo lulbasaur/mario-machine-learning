@@ -10,9 +10,10 @@ FILENAME = "DP1.state"
 
   BOXRADIUS = 6
   INPUTSIZE = (BOXRADIUS*2+1)*(BOXRADIUS*2+1)
-
+--13*13 + 1 = 170
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
+  HIDDENNODES=87
   MAXNEURON = 1000000
 ---------------------------- INPUT------------------------------
 function get_positions()
@@ -59,16 +60,12 @@ end
 
 function get_inputs()
 	get_positions()
-
 	sprites = get_sprites()
 	extended = get_extended_sprites()
-
 	local inputs = {}
-
 	for dy=-BOXRADIUS*16,BOXRADIUS*16,16 do
 		for dx=-BOXRADIUS*16,BOXRADIUS*16,16 do
 			inputs[#inputs+1] = 0
-
 			tile = get_tile(dx, dy)
 			if tile == 1 and mario_y+dy < 0x1B0 then
 				inputs[#inputs] = 1
@@ -91,36 +88,112 @@ function get_inputs()
 			end
 		end
 	end
+end
+------------------MATH-----------------------------------------
 
 
---poppe
+function sigmoid(x)
+	return 2/(1+math.exp(-4.9*x))-1
+end
+
+---------------------ANN--------------------------------------
 function new_neuron()
   local neuron = {}
-  neuron.connections = {}
-  neuron.weight = 0.0
+  neuron.incoming_connections = {}
+  neuron.value = 0.0
   return neuron
 --create neuron here and return
 end
---poppe
+
 
 
 function new_neural_network()
   local neural_network = {}
   neural_network.neurons = {}
-
-  for i = 1, Inputs do
+  neural_network.hidden_neurons = {}
+  neural_network.outputs = {}
+  neural_network.weights_in_to_hidden = {}
+  neural_network.weights_hidden_to_out = {}
+  for i = 1,INPUTS do
     neural_network.neurons[i] = new_neuron()
   end
-
-  for i = 1, Outputs do
-    network.neurons[MaxNeuron+i] = new_neuron()
+  for i=1,HIDDENNODES do
+    neural_network.hidden_neurons[i] = new_neuron()
   end
---create neural network :)
+  for i = 1,OUTPUTS do
+    network.neurons[i] = new_neuron()
+  end
+  --init weights input to hidden
+  for i=1,INPUTS do
+    for j=1,HIDDENNODES do
+      weights_in_to_hidden[i][j] = math.random()
+    end
+  end
+  --init weights hidden to output
+  for i=1,HIDDENNODES do
+    for j=1,OUTPUTS do
+      weights_hidden_to_out[i][j] = math.random()
+    end
+  end
+end
+
+function build_neural_connections()
+
+end
+
+function new_genome()
+  local genome = {}
+  genome.network = {}
+  genome.fitness = 0
+  genom.rank = 0
+end
+
+function evaluate_network()
+  local current_outputs = {false,false,false,true}
+  return current_outputs
+end
+
+function clear_joypad()
+	controller = {}
+	for b = 1,#BUTTONNAMES do
+		controller["P1 " .. BUTTONNAMES[b]] = false
+	end
+	joypad.set(controller)
+end
+
+--set current action
+function evaluate_current()
+	inputs = get_inputs()
+	controller = evaluate_network()
+	if controller["P1 Left"] and controller["P1 Right"] then
+		controller["P1 Left"] = false
+		controller["P1 Right"] = false
+	end
+	if controller["P1 Up"] and controller["P1 Down"] then
+		controller["P1 Up"] = false
+		controller["P1 Down"] = false
+	end
+	joypad.set(controller)
 end
 
 
-
+savestate.load(FILENAME);
 while true do
+	--clear_joypad()
+	--generateNetwork(genome)
 
+  local outputs = {}
+  for o=1,OUTPUTS do
+		local button = "P1 " .. BUTTONNAMES[o]
+		outputs[button] = false
+	end
+  button = "P1 " .. BUTTONNAMES[4]
+  outputs[button] = true
+	evaluate_current()
+
+  controller = outputs
+  joypad.set(controller)
+  print(outputs)
   emu.frameadvance()
+  console.writeline("newframe")
 end
