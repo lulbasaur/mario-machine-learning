@@ -13,10 +13,12 @@ FILENAME = "DP1.state"
 --13*13 + 1 = 170
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
-  HIDDENNODES = 87
+  HIDDENNODES = 20
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
   MAXNEURON = 1000000
+
+  POPULATION_NR = 10
 ---------------------------- INPUT------------------------------
 function get_positions()
 	mario_x = memory.read_s16_le(0x94)
@@ -216,10 +218,23 @@ end
 
 function new_genome()
   local genome = {}
-  genome.network = {}
+  genome.network = new_neural_network()
   genome.fitness = 0
-  genom.rank = 0
+  genome.rank = 0
+  return genome
 end
+
+function new_population()
+  local population = {}
+  population.current_best = 1
+  population.individuals = {}
+  for i=1,POPULATION_NR do
+    population.individuals[i] = new_genome()
+  end
+  return population
+end
+
+
 
 function clear_joypad()
 	controller = {}
@@ -244,15 +259,47 @@ function test()
   return outputs
 end
 
-savestate.load(FILENAME);
+
+function run_individual(indiv_index,pop)
+  print("run_individual")
+  local time_out_const = 40
+  local time_out = time_out_const
+  local rightmost = 0
+  savestate.load(FILENAME);
+  while time_out > 0 do
+    local inputs = get_inputs()
+    local outputs =  evaluate_network(pop.individuals[indiv_index].network,inputs)
+    controller = outputs
+    if controller["P1 Left"] and controller["P1 Right"] then
+      controller["P1 Left"] = false
+      controller["P1 Right"] = false
+    end
+    if controller["P1 Up"] and controller["P1 Down"] then
+      controller["P1 Up"] = false
+      controller["P1 Down"] = false
+    end
+    controller["P1 Right"] = true
+    joypad.set(controller)
+    get_positions()
+    if mario_x > rightmost then
+      rightmost = mario_x
+      time_out = time_out_const
+    end
+    time_out = time_out - 1
+    emu.frameadvance()
+  end
+
+end
+--savestate.load(FILENAME);
+population = new_population()
 while true do
 	clear_joypad()
-  outputs = test()
-  print(outputs)
+  current_individual=1
+  for i=1,POPULATION_NR do
+    print("running individual:")
+    print(i)
+    run_individual(i,population)
+  end
 
-
-  controller = outputs
-  joypad.set(controller)
-  emu.frameadvance()
   console.writeline("newframe")
 end
