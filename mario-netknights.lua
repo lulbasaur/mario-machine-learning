@@ -13,12 +13,15 @@ FILENAME = "DP1.state"
 --13*13 + 1 = 170
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
-  HIDDENNODES = 20
+  HIDDENNODES = 30
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
-  MAXNEURON = 1000000
-
+  CROSSOVER_PROB = 0.75
+  CROSSOVER_SPAN = 10
+  CROSSOVER_THRESH = 10
+  MUTATE_PROB = 0.75
   POPULATION_NR = 10
+  WEIGHT_SPAN = 4
 ---------------------------- INPUT------------------------------
 function get_positions()
 	mario_x = memory.read_s16_le(0x94)
@@ -109,15 +112,16 @@ function new_neuron()
 end
 
 
-function new_weight_matrix(inn,outn)
-  local weight_matrix = {}
+
+function new_weight_array(inn,outn)
+  local weight_array = {}
   for i=1,inn do
-    weight_matrix[i] = {}
     for j=1,outn do
-      weight_matrix[i][j] = math.random()
+      weight_array[i*outn + j] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
+      --weight_array[i*outn + j] = math.random()
     end
   end
-  return weight_matrix
+  return weight_array
 end
 
 function new_neural_network()
@@ -156,10 +160,9 @@ function new_neural_network()
   end
 
   --init weights hidden to output
-  neural_network.weights[1] = new_weight_matrix(INPUTS,HIDDENNODES)
-  neural_network.weights[2] = new_weight_matrix(HIDDENNODES,HIDDENNODES)
-  neural_network.weights[3] = new_weight_matrix(HIDDENNODES,OUTPUTS)
-
+  neural_network.weights[1] = new_weight_array(INPUTS,HIDDENNODES)
+  neural_network.weights[2] = new_weight_array(HIDDENNODES,HIDDENNODES)
+  neural_network.weights[3] = new_weight_array(HIDDENNODES,OUTPUTS)
   return neural_network
 end
 
@@ -174,7 +177,7 @@ function evaluate_network(network,inputs)
   for i=1,HIDDENNODES do
     for j=1,INPUTS-1 do
       local current_in_value = network.input_neurons[j].value
-      local current_weight_value = network.weights[1][j][i]
+      local current_weight_value = network.weights[1][j*HIDDENNODES + i]
       local old = network.hidden_layers[1][i].value
       network.hidden_layers[1][i].value = old + current_in_value * current_weight_value
     end
@@ -185,7 +188,7 @@ function evaluate_network(network,inputs)
   for i=1,HIDDENNODES do --l2
     for j=1,HIDDENNODES do --l1
       local current_in_value = network.hidden_layers[1][j].value
-      local current_weight_value = network.weights[2][j][i]
+      local current_weight_value = network.weights[2][j*HIDDENNODES+i]
       local old = network.hidden_layers[2][i].value
       network.hidden_layers[2][i].value = old + current_in_value * current_weight_value
     end
@@ -196,7 +199,7 @@ function evaluate_network(network,inputs)
   for i=1,OUTPUTS do
     for j=1,HIDDENNODES do
       local current_in_value = network.hidden_layers[2][j].value
-      local current_weight_value = network.weights[3][j][i]
+      local current_weight_value = network.weights[3][j*OUTPUTS+i]
       local old = network.outputs[i].value
       network.outputs[i].value = old + current_in_value * current_weight_value
     end
@@ -206,7 +209,7 @@ function evaluate_network(network,inputs)
   local outputs = {}
   for o=1,OUTPUTS do
     local button = "P1 " .. BUTTONNAMES[o]
-    if network.input_neurons[o].value > 0 then
+    if network.outputs[o].value > 0 then
       outputs[button] = true
     else
       outputs[button] = false
@@ -251,18 +254,86 @@ function sleep(n)  -- seconds
   while clock() - t0 <= n do end
 end
 
-function test()
-  --sleep(1)
-  local nn = new_neural_network()
-  local current_inputs = get_inputs()
-  local outputs = evaluate_network(nn,current_inputs)
-  return outputs
+
+function crossover(network1,network2)
+  local new_network = new_neural_network()
+  --nn1 weights
+  local w1_1 = network1.weights[1]
+  local w1_2 = network1.weights[2]
+  local w1_3 = network1.weights[3]
+  --nn2 weights
+  local w2_1 = network2.weights[1]
+  local w2_2 = network2.weights[2]
+  local w2_3 = network2.weights[3]
+
+  -- 170*20 * 3400 --- 850
+  local span1 = (INPUTS*HIDDENNODES)/CROSSOVER_SPAN
+  -- 20 * 20 = 400 --- 100
+  local span2 = (HIDDENNODES*HIDDENNODES)/CROSSOVER_SPAN
+  -- 20*4 = 80 --- 20
+  local span3 = (HIDDENNODES*OUTPUTS)/CROSSOVER_SPAN
+
+  local new_w1 = w1_1
+  local new_w2 = w1_2
+  local new_w3 = w1_3
+
+  local start_index_1 = math.random(1, (INPUTS*HIDDENNODES)-span1)
+  local start_index_2 = math.random(1, (HIDDENNODES*HIDDENNODES)-span2)
+  local start_index_3 = math.random(1, (HIDDENNODES*OUTPUTS)-span3)
+
+  for i=start_index_1,span1 do
+    new_w1[i] = w2_1[i]
+  end
+  for i=start_index_2,span2 do
+    new_w2[i] = w2_2[i]
+  end
+  for i=start_index_3,span3 do
+    new_w3[i] = w2_3[i]
+  end
+  new_network.weights[1] = new_w1
+  new_network.weights[2] = new_w2
+  new_network.weights[3] = new_w3
+
+  return new_network
 end
 
+function mutate(net)
+  local w1 = net.weights[1]
+  local w2 = net.weights[2]
+  local w3 = net.weights[3]
+  local index_1 = math.random(1, (INPUTS*HIDDENNODES))
+  local index_2 = math.random(1, (HIDDENNODES*HIDDENNODES))
+  local index_3 = math.random(1, (HIDDENNODES*OUTPUTS))
+  w1[index_1] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
+  w2[index_2] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
+  w3[index_3] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
+  net.weights[1] = w1
+  net.weights[2] = w2
+  net.weights[3] = w3
+  return net
+end
+
+function evolve(popu)
+  if math.random() < CROSSOVER_PROB then
+    local top1 = popu.individuals[1].network
+    local top2 = popu.individuals[2].network
+    for i=1,POPULATION_NR do
+      if math.random() < MUTATE_PROB then
+        print("mutate!")
+        popu.individuals[i].network = mutate(popu.individuals[i].network)
+      end
+      if i>POPULATION_NR-(POPULATION_NR/CROSSOVER_THRESH) then
+        popu.individuals[i].network = crossover(top1,top2)
+      end
+    end
+  end
+
+  return popu
+end
 
 function run_individual(indiv_index,pop)
   print("run_individual")
-  local time_out_const = 40
+  local time_out_const = 20
   local time_out = time_out_const
   local rightmost = 0
   savestate.load(FILENAME);
@@ -278,7 +349,7 @@ function run_individual(indiv_index,pop)
       controller["P1 Up"] = false
       controller["P1 Down"] = false
     end
-    controller["P1 Right"] = true
+    --controller["P1 Left"] = false
     joypad.set(controller)
     get_positions()
     if mario_x > rightmost then
@@ -286,12 +357,35 @@ function run_individual(indiv_index,pop)
       time_out = time_out_const
     end
     time_out = time_out - 1
+    pop.individuals[indiv_index].fitness = mario_x
+    --print("fitness",pop.individuals[indiv_index].fitness )
     emu.frameadvance()
   end
-
 end
+
+function average_fitness(popula)
+  local aver = 0
+  for i=1,POPULATION_NR do
+    aver = aver + popula.individuals[i].fitness
+  end
+  aver = aver/POPULATION_NR
+  return aver
+end
+
+function average_fitness_increase_check(popul,aver, old_avr)
+  if old_avr > aver then
+    print("getting worse! improving population...")
+    for i=POPULATION_NR/2,POPULATION_NR do
+      popul.individuals[i].network = popul.individuals[1].network
+    end
+  end
+  print("getting better! keep it up!")
+  return popul
+end
+
 --savestate.load(FILENAME);
 population = new_population()
+old_average = 0
 while true do
 	clear_joypad()
   current_individual=1
@@ -300,6 +394,15 @@ while true do
     print(i)
     run_individual(i,population)
   end
-
+  table.sort(population.individuals, function (a,b)
+    return (a.fitness > b.fitness)
+  end)
+  for i=1,POPULATION_NR do
+    print("fitness", population.individuals[i].fitness)
+  end
+  population = evolve(population)
+  average = average_fitness(population)
+  population = average_fitness_increase_check(population,average,old_average)
+  old_average = average
   console.writeline("newframe")
 end
