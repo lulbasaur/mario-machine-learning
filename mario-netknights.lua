@@ -294,6 +294,7 @@ function crossover(network1,network2)
   new_network.weights[2] = new_w2
   new_network.weights[3] = new_w3
 
+
   return new_network
 end
 
