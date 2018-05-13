@@ -16,7 +16,7 @@ FILENAME = "DP1.state"
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
 	--GA CONFIG
-	POPULATION_NR = 10
+	POPULATION_NR = 20
 	--WEIGHT_SPAN = 5 -- weight = random(-WEIGHT_SPAN,WEIGHT_SPAN)
 
   CROSSOVER_SPAN = 2 -- n*m /CROSSOVER_SPAN = span
@@ -328,18 +328,23 @@ function run_individual(indiv_index,pop)
   local time_out = time_out_const
   local rightmost = 0
   savestate.load(FILENAME);
+  framecount = 0
   while time_out > 0 do
-    local inputs = get_inputs()
-    local outputs =  evaluate_network(pop.individuals[indiv_index].network,inputs)
-    controller = outputs
-    if controller["P1 Left"] and controller["P1 Right"] then
-      controller["P1 Left"] = false
-      controller["P1 Right"] = false
+    --clear_joypad()
+    if framecount%3==0 then
+      local inputs = get_inputs()
+      local outputs =  evaluate_network(pop.individuals[indiv_index].network,inputs)
+      controller = outputs
+      if controller["P1 Left"] and controller["P1 Right"] then
+        controller["P1 Left"] = false
+        controller["P1 Right"] = false
+      end
+      if controller["P1 Up"] and controller["P1 Down"] then
+        controller["P1 Up"] = false
+        controller["P1 Down"] = false
+      end
     end
-    if controller["P1 Up"] and controller["P1 Down"] then
-      controller["P1 Up"] = false
-      controller["P1 Down"] = false
-    end
+
     --controller["P1 Left"] = false
     joypad.set(controller)
     get_positions()
@@ -350,6 +355,7 @@ function run_individual(indiv_index,pop)
     time_out = time_out - 1
     pop.individuals[indiv_index].fitness = mario_x
     --print("fitness",pop.individuals[indiv_index].fitness )
+    framecount = framecount+1
     emu.frameadvance()
   end
 end
@@ -368,11 +374,11 @@ function average_fitness_increase_check(popul,aver, old_avr,best_indl)
     print("getting worse! creating new species...")
     print("from individual:",best_indl.id)
     print("with fitness:",best_indl.fitness)
-    for i=2,POPULATION_NR do
-      local new_genome_sp = mutate(best_indl)
-      popul.individuals[i].network = new_genome_sp.network
+    for i=NR_OF_PARENTS_TO_BREED_FROM,POPULATION_NR do
+      popul.individuals[i].network = deepcopy(best_indl.network)
     end
   end
+  popul = evolve(popul)
   return popul
 end
 
@@ -398,14 +404,13 @@ best_individual = deepcopy(population.individuals[1])
 while true do
 	clear_joypad()
   for i=1,POPULATION_NR do
-    print("running individual:", i)
+    print("running individual:", population.individuals[i].id)
     run_individual(i,population)
   end
   table.sort(population.individuals, function (a,b)
     return (a.fitness > b.fitness)
   end)
   --update rank
-
   if best_so_far < population.individuals[1].fitness then
     best_individual = deepcopy(population.individuals[1])
     best_so_far = population.individuals[1].fitness
