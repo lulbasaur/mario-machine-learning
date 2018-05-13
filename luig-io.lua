@@ -1,4 +1,3 @@
--- Bra bok
 -- www.cs.uni.edu/~schafer/4620/readings/Ai%20Techniques%20For%20Game%20Programming.pdf
 FILENAME = "DP1.state"
   BUTTONNAMES = {
@@ -10,18 +9,25 @@ FILENAME = "DP1.state"
 
   BOXRADIUS = 6
   INPUTSIZE = (BOXRADIUS*2+1)*(BOXRADIUS*2+1)
---13*13 + 1 = 170
+  --ANN CONFIG
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
-  HIDDENNODES = 30
+  HIDDENNODES = 20
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
-  CROSSOVER_PROB = 0.75
-  CROSSOVER_SPAN = 10
-  CROSSOVER_THRESH = 10
-  MUTATE_PROB = 0.75
-  POPULATION_NR = 10
-  WEIGHT_SPAN = 4
+	--GA CONFIG
+	POPULATION_NR = 10
+	--WEIGHT_SPAN = 5 -- weight = random(-WEIGHT_SPAN,WEIGHT_SPAN)
+
+  CROSSOVER_SPAN = 2 -- n*m /CROSSOVER_SPAN = span
+	NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.25)
+
+  CROSSOVER_PROB_DEFAULT = 0.40
+	CROSSOVER_DECAY_DEFAULT = 0.9
+
+  MUTATE_PROB_DEFAULT = 0.75
+	MUTATE_DECAY_DEFAULT = 0.05
+
 ---------------------------- INPUT------------------------------
 function get_positions()
 	mario_x = memory.read_s16_le(0x94)
@@ -99,7 +105,6 @@ function get_inputs()
 end
 ------------------MATH-----------------------------------------
 
-
 function sigmoid(x)
 	return 2/(1+math.exp(-4.9*x))-1
 end
@@ -111,14 +116,12 @@ function new_neuron()
   return neuron
 end
 
-
-
 function new_weight_array(inn,outn)
   local weight_array = {}
   for i=1,inn do
     for j=1,outn do
-      weight_array[i*outn + j] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
-      --weight_array[i*outn + j] = math.random()
+      --weight_array[i*outn + j] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
+      weight_array[i*outn + j] = math.random()*4-2
     end
   end
   return weight_array
@@ -135,30 +138,25 @@ function new_neural_network()
   end
   -- output neuron array
   neural_network.outputs = {}
-
   --weight array of arrays
   neural_network.weights = {}
   for i=1,LAYERS-1 do
     neural_network.weights[i] = {}
   end
-
   --INPUT NEURONS
   for i = 1,INPUTS do
     neural_network.input_neurons[i] = new_neuron()
   end
-
   --HIDDEN LAYERS
   for i=1,HIDDENLAYERS do
     for j=1,HIDDENNODES do
       neural_network.hidden_layers[i][j] = new_neuron()
     end
   end
-
   --OUTPUT NEURONS
   for i = 1,OUTPUTS do
     neural_network.outputs[i] = new_neuron()
   end
-
   --init weights hidden to output
   neural_network.weights[1] = new_weight_array(INPUTS,HIDDENNODES)
   neural_network.weights[2] = new_weight_array(HIDDENNODES,HIDDENNODES)
@@ -172,10 +170,9 @@ function evaluate_network(network,inputs)
   for i=1,INPUTS do
     network.input_neurons[i].value = inputs[i]
   end
-
   --update hidden layer values
   for i=1,HIDDENNODES do
-    for j=1,INPUTS-1 do
+    for j=1,INPUTS-1 do --WHY -1???????????????????
       local current_in_value = network.input_neurons[j].value
       local current_weight_value = network.weights[1][j*HIDDENNODES + i]
       local old = network.hidden_layers[1][i].value
@@ -183,7 +180,6 @@ function evaluate_network(network,inputs)
     end
     network.hidden_layers[1][i].value = sigmoid(network.hidden_layers[1][i].value)
   end
-
   --update hidden layer values
   for i=1,HIDDENNODES do --l2
     for j=1,HIDDENNODES do --l1
@@ -194,7 +190,6 @@ function evaluate_network(network,inputs)
     end
     network.hidden_layers[2][i].value = sigmoid(network.hidden_layers[2][i].value)
   end
-
   --update hidden layer values
   for i=1,OUTPUTS do
     for j=1,HIDDENNODES do
@@ -205,7 +200,7 @@ function evaluate_network(network,inputs)
     end
     network.outputs[i].value = sigmoid(network.outputs[i].value)
   end
-
+  --set outputs
   local outputs = {}
   for o=1,OUTPUTS do
     local button = "P1 " .. BUTTONNAMES[o]
@@ -215,15 +210,22 @@ function evaluate_network(network,inputs)
       outputs[button] = false
     end
   end
-
+  --return the current outputs
   return outputs
 end
 ----------------------GA---------------------------------------
 function new_genome()
   local genome = {}
   genome.network = new_neural_network()
-  genome.fitness = 0
-  genome.rank = 0
+  genome.fitness = 1
+  genome.best_fitness = 1
+  genome.id = "name not set"
+  genome.rank = POPULATION_NR
+  genome.mutate_decay = MUTATE_DECAY_DEFAULT
+  genome.mutate_prob = MUTATE_PROB_DEFAULT
+  genome.crossover_decay = CROSSOVER_DECAY_DEFAULT
+  genome.crossover_prob = CROSSOVER_PROB_DEFAULT
+
   return genome
 end
 
@@ -233,6 +235,7 @@ function new_population()
   population.individuals = {}
   for i=1,POPULATION_NR do
     population.individuals[i] = new_genome()
+    population.individuals[i].id ="id_" .. i
   end
   return population
 end
@@ -255,85 +258,72 @@ function sleep(n)  -- seconds
 end
 
 
-function crossover(network1,network2)
-  local new_network = new_neural_network()
+function crossover(genome_1,genome_2)
+  local new_g = deepcopy(genome_1)
   --nn1 weights
-  local w1_1 = network1.weights[1]
-  local w1_2 = network1.weights[2]
-  local w1_3 = network1.weights[3]
-  --nn2 weights
-  local w2_1 = network2.weights[1]
-  local w2_2 = network2.weights[2]
-  local w2_3 = network2.weights[3]
-
   -- 170*20 * 3400 --- 850
-  local span1 = (INPUTS*HIDDENNODES)/CROSSOVER_SPAN
+  local span1 = math.floor((INPUTS*HIDDENNODES)/CROSSOVER_SPAN)
   -- 20 * 20 = 400 --- 100
-  local span2 = (HIDDENNODES*HIDDENNODES)/CROSSOVER_SPAN
+  local span2 = math.floor((HIDDENNODES*HIDDENNODES)/CROSSOVER_SPAN)
   -- 20*4 = 80 --- 20
-  local span3 = (HIDDENNODES*OUTPUTS)/CROSSOVER_SPAN
-
-  local new_w1 = w1_1
-  local new_w2 = w1_2
-  local new_w3 = w1_3
+  local span3 = math.floor((HIDDENNODES*OUTPUTS)/CROSSOVER_SPAN)
 
   local start_index_1 = math.random(1, (INPUTS*HIDDENNODES)-span1)
   local start_index_2 = math.random(1, (HIDDENNODES*HIDDENNODES)-span2)
   local start_index_3 = math.random(1, (HIDDENNODES*OUTPUTS)-span3)
-
+  --print("index",{start_index_1,start_index_2,start_index_3})
   for i=start_index_1,span1 do
-    new_w1[i] = w2_1[i]
+    new_g.network.weights[1][i] = genome_2.network.weights[1][i]
   end
   for i=start_index_2,span2 do
-    new_w2[i] = w2_2[i]
+    new_g.network.weights[2][i] = genome_2.network.weights[2][i]
   end
   for i=start_index_3,span3 do
-    new_w3[i] = w2_3[i]
+    new_g.network.weights[3][i] = genome_2.network.weights[3][i]
   end
-  new_network.weights[1] = new_w1
-  new_network.weights[2] = new_w2
-  new_network.weights[3] = new_w3
-
-
-  return new_network
+  return new_g
 end
 
-function mutate(net)
-  local w1 = net.weights[1]
-  local w2 = net.weights[2]
-  local w3 = net.weights[3]
-  local index_1 = math.random(1, (INPUTS*HIDDENNODES))
-  local index_2 = math.random(1, (HIDDENNODES*HIDDENNODES))
-  local index_3 = math.random(1, (HIDDENNODES*OUTPUTS))
-  w1[index_1] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
-  w2[index_2] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
-  w3[index_3] = math.random(-WEIGHT_SPAN,WEIGHT_SPAN)
-  net.weights[1] = w1
-  net.weights[2] = w2
-  net.weights[3] = w3
-  return net
+function mutate(geno)
+  geno.mutate_prob = (geno.rank +(POPULATION_NR*0.1))/POPULATION_NR
+  if math.random() < geno.mutate_prob then
+    print("mutating individual",geno.id)
+    local index_1 = math.random(1, (INPUTS*HIDDENNODES))
+    local index_2 = math.random(1, (HIDDENNODES*HIDDENNODES))
+    local index_3 = math.random(1, (HIDDENNODES*OUTPUTS))
+    geno.network.weights[1][index_1] = math.random()*4-2
+    geno.network.weights[2][index_1] = math.random()*4-2
+    geno.network.weights[3][index_1] = math.random()*4-2
+  end
+  return geno
 end
 
 function evolve(popu)
-  if math.random() < CROSSOVER_PROB then
-    local top1 = popu.individuals[1].network
-    local top2 = popu.individuals[2].network
-    for i=1,POPULATION_NR do
-      if math.random() < MUTATE_PROB then
-        print("mutate!")
-        popu.individuals[i].network = mutate(popu.individuals[i].network)
+  local invid1 = 1
+  local invid2 = 1
+  for i=1,POPULATION_NR do
+      popu.individuals[i] = mutate(popu.individuals[i])
+      if math.random() < CROSSOVER_PROB_DEFAULT and i>NR_OF_PARENTS_TO_BREED_FROM+1 then
+        invid1=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        math.randomseed(i +os.clock())
+        invid2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        while invid1==invid2 do
+          invid1=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+          math.randomseed(i+i+os.clock())
+          invid2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        end
+        local str = "Crossover:" .. invid1
+        local str2= "," .. invid2
+        print(str .. str2)
+        local old_name = popu.individuals[i].id
+        popu.individuals[i] = crossover(popu.individuals[invid1],popu.individuals[invid2])
+        popu.individuals[i].id=old_name
       end
-      if i>POPULATION_NR-(POPULATION_NR/CROSSOVER_THRESH) then
-        popu.individuals[i].network = crossover(top1,top2)
-      end
-    end
   end
-
   return popu
 end
 
 function run_individual(indiv_index,pop)
-  print("run_individual")
   local time_out_const = 20
   local time_out = time_out_const
   local rightmost = 0
@@ -373,37 +363,63 @@ function average_fitness(popula)
   return aver
 end
 
-function average_fitness_increase_check(popul,aver, old_avr)
+function average_fitness_increase_check(popul,aver, old_avr,best_indl)
   if old_avr > aver then
-    print("getting worse! improving population...")
-    for i=POPULATION_NR/2,POPULATION_NR do
-      popul.individuals[i].network = popul.individuals[1].network
+    print("getting worse! creating new species...")
+    print("from individual:",best_indl.id)
+    print("with fitness:",best_indl.fitness)
+    for i=2,POPULATION_NR do
+      local new_genome_sp = mutate(best_indl)
+      popul.individuals[i].network = new_genome_sp.network
     end
   end
-  print("getting better! keep it up!")
   return popul
 end
 
---savestate.load(FILENAME);
+function deepcopy(orig)
+    local orig_type = type(orig)
+    local copy
+    if orig_type == 'table' then
+        copy = {}
+        for orig_key, orig_value in next, orig, nil do
+            copy[deepcopy(orig_key)] = deepcopy(orig_value)
+        end
+        setmetatable(copy, deepcopy(getmetatable(orig)))
+    else -- number, string, boolean, etc
+        copy = orig
+    end
+    return copy
+end
+-------------RUN----------------------
 population = new_population()
 old_average = 0
+best_so_far = 0
+best_individual = deepcopy(population.individuals[1])
 while true do
 	clear_joypad()
-  current_individual=1
   for i=1,POPULATION_NR do
-    print("running individual:")
-    print(i)
+    print("running individual:", i)
     run_individual(i,population)
   end
   table.sort(population.individuals, function (a,b)
     return (a.fitness > b.fitness)
   end)
+  --update rank
+
+  if best_so_far < population.individuals[1].fitness then
+    best_individual = deepcopy(population.individuals[1])
+    best_so_far = population.individuals[1].fitness
+    print("new best so far:", population.individuals[1].id)
+    print("with fitness:", population.individuals[1].fitness)
+  end
   for i=1,POPULATION_NR do
+    population.individuals[i].rank = i
     print("fitness", population.individuals[i].fitness)
   end
+  --evolve population
   population = evolve(population)
   average = average_fitness(population)
-  population = average_fitness_increase_check(population,average,old_average)
+  population = average_fitness_increase_check(population,average,old_average,best_individual)
   old_average = average
-  console.writeline("newframe")
+  console.writeline("new epoch...")
 end
