@@ -341,7 +341,7 @@ FILENAME = "DP1.state"
       end
     end
     --mutate
-    for i=2,POPULATION_NR do
+    for i=1,POPULATION_NR do
       pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
     end
     return pop_evolve
