@@ -15,13 +15,14 @@ FILENAME = "DP1.state"
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
   --GA CONFIG
-  POPULATION_NR = 20
+  POPULATION_NR = 100
 
   CROSSOVER_SPAN = 10 -- n*m /CROSSOVER_SPAN = span
-  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.1)
+  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.25)
 
   CROSSOVER_PROB_DEFAULT = 0.60
   CROSSOVER_DECAY_DEFAULT = 0.9
+  CROSSOVER_2_STRIDE = 3
 
   MUTATE_PROB_DEFAULT = 0.75
   MUTATE_DECAY_DEFAULT = 0.05
@@ -175,6 +176,9 @@ FILENAME = "DP1.state"
     for i=1,INPUTS do
       network.input_neurons[i].value = inputs[i]
     end
+    -- for i=1,N do
+    --  for j=1,M do
+    --    mt[i*M + j] = 0
     --update hidden layer values
     for i=1,HIDDENNODES do
       for j=1,INPUTS-1 do --WHY -1???????????????????
@@ -256,7 +260,7 @@ FILENAME = "DP1.state"
       local iter_nr_1 = math.floor(MUTATE_WEIGHT_PROCENT*(INPUTS*HIDDENNODES))
       local iter_nr_2 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*HIDDENNODES))
       local iter_nr_3 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*OUTPUTS))
-      print("mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
+      --print("mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
       for i=1,iter_nr_1 do
         local index_1 = math.random(1, (INPUTS*HIDDENNODES))
         geno_to_mut.network.weights[1][index_1] = math.random()*4-2
@@ -275,6 +279,7 @@ FILENAME = "DP1.state"
 
   function crossover(genome_1_net,genome_2_net)
     local new_g_net = deep_copy_network_weights(genome_1_net)
+    --local new_g_net = deepcopy(genome_1_net)
     local span1 = math.floor((INPUTS*HIDDENNODES)/CROSSOVER_SPAN)
     local span2 = math.floor((HIDDENNODES*HIDDENNODES)/CROSSOVER_SPAN)
     local span3 = math.floor((HIDDENNODES*OUTPUTS)/CROSSOVER_SPAN)
@@ -294,6 +299,26 @@ FILENAME = "DP1.state"
     return new_g_net
   end
 
+  function crossover_2(genome_1_net,genome_2_net)
+    local new_g_net = deep_copy_network_weights(genome_1_net)
+    for i=1,#genome_2_net.weights[1] do
+      if math.random(1,CROSSOVER_2_STRIDE)==1 then
+        new_g_net.weights[1][i] = genome_2_net.weights[1][i]
+      end
+    end
+    for i=1,#genome_2_net.weights[2] do
+      if math.random(1,CROSSOVER_2_STRIDE)==1 then
+        new_g_net.weights[2][i] = genome_2_net.weights[2][i]
+      end
+    end
+    for i=1,#genome_2_net.weights[3] do
+      if math.random(1,CROSSOVER_2_STRIDE)==1 then
+        new_g_net.weights[3][i] = genome_2_net.weights[3][i]
+      end
+    end
+    return new_g_net
+  end
+
   function evolve(pop_evolve)
     --crossover
     for i=NR_OF_PARENTS_TO_BREED_FROM+1,POPULATION_NR do
@@ -305,12 +330,18 @@ FILENAME = "DP1.state"
           math.randomseed(i+os.clock())
           id2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
         end
-        print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
-        pop_evolve.individuals[i].network = crossover(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
+        --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
+        if math.random(1, 1)==1 then
+          pop_evolve.individuals[i].network = crossover(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
+        elseif math.random(1, 2)==2 then
+          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
+        else
+          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[i].network,pop_evolve.individuals[id2].network)
+        end
       end
     end
     --mutate
-    for i=1,POPULATION_NR do
+    for i=2,POPULATION_NR do
       pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
     end
     return pop_evolve
@@ -347,6 +378,17 @@ FILENAME = "DP1.state"
 
   function deep_copy_network_weights(network_orig)
     local new_net = new_neural_network()
+    for i=1,INPUTS do
+      new_net.input_neurons[i].value = network_orig.input_neurons[i].value
+    end
+    for i=1,HIDDENLAYERS do
+      for j=1,HIDDENNODES do
+        new_net.hidden_layers[i][j].value = network_orig.hidden_layers[i][j].value
+      end
+    end
+    for i = 1,OUTPUTS do
+      new_net.outputs[i].value = network_orig.outputs[i].value
+    end
     for i=1,#network_orig.weights[1] do
       new_net.weights[1][i] = network_orig.weights[1][i]
     end
@@ -361,11 +403,11 @@ FILENAME = "DP1.state"
 
 function run_individual(invd_idx)
   local speed_bonus = 0
-  local time_out_const = 20
+  local time_out_const = 30
   local time_out = time_out_const
   local rightmost = 0
   local framecount = 0
-  savestate.load(FILENAME);
+  savestate.load(FILENAME)
   while time_out > 0 do
     clear_joypad()
     if framecount%5==0 then
@@ -388,7 +430,7 @@ function run_individual(invd_idx)
       rightmost = mario_x
       time_out = time_out_const
     end
-    time_out= time_out-1
+    time_out = time_out-1
     speed_bonus= math.floor(mario_x/framecount)
     population.individuals[invd_idx].fitness= mario_x+speed_bonus
     framecount=framecount+1
@@ -430,4 +472,5 @@ end
       print("-- New best: " .. population.individuals[1].id .. ", fitness: " .. best_so_far)
     end
     population = evolve(population)
+    sleep(2)
   end
