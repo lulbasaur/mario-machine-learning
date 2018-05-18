@@ -1,4 +1,5 @@
-FILENAME = "DP1.state"
+--FILENAME = "DP1.state"
+FILENAME = "smw1.state"
   BUTTONNAMES = {
     "A",
     "B",
@@ -17,16 +18,18 @@ FILENAME = "DP1.state"
   --GA CONFIG
   POPULATION_NR = 100
 
-  CROSSOVER_SPAN = 10 -- n*m /CROSSOVER_SPAN = span
+
+  --evolve parameters
+  CROSSOVER_PROB_DEFAULT = 0.60
   NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.25)
 
-  CROSSOVER_PROB_DEFAULT = 0.60
-  CROSSOVER_DECAY_DEFAULT = 0.9
-  CROSSOVER_2_STRIDE = 3
+  --crossover parameters
+  CROSSOVER_SPAN = 10 -- n*m /CROSSOVER_SPAN = span
 
-  MUTATE_PROB_DEFAULT = 0.75
-  MUTATE_DECAY_DEFAULT = 0.05
-  MUTATE_RANK_RATIO = 0.1
+  --crossover_2 parameters
+  CROSSOVER_2_STRIDE = 3 --math.random(1,CROSSOVER_2_STRIDE)==1
+  --mutate parameters
+  MUTATE_RANK_RATIO = 0.2
   MUTATE_WEIGHT_PROCENT = 0.05
 
   WEIGHT_LAYER_NR_1 = INPUTS*HIDDENNODES
@@ -127,7 +130,7 @@ FILENAME = "DP1.state"
     for i=1,inn do
       for j=1,outn do
         --weight_array[i*outn + j] = math.random()*4-2
-        weight_array[i*outn + j] = 0
+        weight_array[(i-1)*outn + j] = 0
       end
     end
     return weight_array
@@ -183,7 +186,8 @@ FILENAME = "DP1.state"
     for i=1,HIDDENNODES do
       for j=1,INPUTS-1 do --WHY -1???????????????????
         local current_in_value = network.input_neurons[j].value
-        local current_weight_value = network.weights[1][j*HIDDENNODES+i]
+        --local current_weight_value = network.weights[1][j*HIDDENNODES+i]
+        local current_weight_value = network.weights[1][(j-1)*HIDDENNODES+i]
         local old = network.hidden_layers[1][i].value
         network.hidden_layers[1][i].value = old + (current_in_value * current_weight_value)
       end
@@ -194,7 +198,8 @@ FILENAME = "DP1.state"
     for i=1,HIDDENNODES do --l2
       for j=1,HIDDENNODES do --l1
         local current_in_value = network.hidden_layers[1][j].value
-        local current_weight_value = network.weights[2][j*HIDDENNODES+i]
+        --local current_weight_value = network.weights[2][j*HIDDENNODES+i]
+        local current_weight_value = network.weights[2][(j-1)*HIDDENNODES+i]
         local old = network.hidden_layers[2][i].value
         network.hidden_layers[2][i].value = old + (current_in_value * current_weight_value)
       end
@@ -205,7 +210,8 @@ FILENAME = "DP1.state"
     for i=1,OUTPUTS do
       for j=1,HIDDENNODES do
         local current_in_value = network.hidden_layers[2][j].value
-        local current_weight_value = network.weights[3][j*OUTPUTS+i]
+        --local current_weight_value = network.weights[3][j*OUTPUTS+i]
+        local current_weight_value = network.weights[3][(j-1)*OUTPUTS+i]
         local old = network.outputs[i].value
         network.outputs[i].value = old + (current_in_value * current_weight_value)
       end
@@ -234,10 +240,7 @@ FILENAME = "DP1.state"
     genome.same_fitness_count = 0
     genome.id = "name not set"
     genome.rank = POPULATION_NR
-    genome.mutate_decay = MUTATE_DECAY_DEFAULT
-    genome.mutate_prob = MUTATE_PROB_DEFAULT
-    genome.crossover_decay = CROSSOVER_DECAY_DEFAULT
-    genome.crossover_prob = CROSSOVER_PROB_DEFAULT
+    genome.mutate_prob = 1
     return genome
   end
 
@@ -331,7 +334,7 @@ FILENAME = "DP1.state"
           id2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
         end
         --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
-        if math.random(1, 1)==1 then
+        if math.random(1, 2)==1 then
           pop_evolve.individuals[i].network = crossover(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
         elseif math.random(1, 2)==2 then
           pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
@@ -340,8 +343,43 @@ FILENAME = "DP1.state"
         end
       end
     end
-    --mutate
-    for i=1,POPULATION_NR do
+    --clone best to last position
+    --pop_evolve.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve.individuals[1].network)
+    --mutate but skip best
+    for i=2,POPULATION_NR do
+      pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
+    end
+    return pop_evolve
+  end
+
+  function evolve_2(pop_evolve_2)
+    --crossover
+    for i=NR_OF_PARENTS_TO_BREED_FROM+1,POPULATION_NR do
+      if math.random()<CROSSOVER_PROB_DEFAULT then
+        local id1 = math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        local id2 = math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        while id1==id2 do
+          id1=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+          math.randomseed(i+os.clock())
+          id2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
+        end
+        --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
+        local cross_choice = math.random(1, 4)
+        if cross_choice == 1 then
+          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
+        elseif cross_choice == 2 then
+          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
+        elseif cross_choice == 3 then
+          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[1].network,pop_evolve.individuals[i].network)
+        else
+          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[i].network,pop_evolve.individuals[id2].network)
+        end
+      end
+    end
+    --clone best to last position
+    --pop_evolve.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve.individuals[1].network)
+    --mutate but skip best
+    for i=2,POPULATION_NR do
       pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
     end
     return pop_evolve
@@ -403,10 +441,11 @@ FILENAME = "DP1.state"
 
 function run_individual(invd_idx)
   local speed_bonus = 0
-  local time_out_const = 30
+  local time_out_const = 40
   local time_out = time_out_const
   local rightmost = 0
   local framecount = 0
+  local score = 0
   savestate.load(FILENAME)
   while time_out > 0 do
     clear_joypad()
@@ -430,12 +469,14 @@ function run_individual(invd_idx)
       rightmost = mario_x
       time_out = time_out_const
     end
+    score = memory.read_s16_le(0x0F34)
     time_out = time_out-1
     speed_bonus= math.floor(mario_x/framecount)
-    population.individuals[invd_idx].fitness= mario_x+speed_bonus
+    population.individuals[invd_idx].fitness= mario_x + speed_bonus
     framecount=framecount+1
     emu.frameadvance()
   end
+  --print("score:", score)
 end
 
 function print_update_fitness_rank()
