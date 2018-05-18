@@ -24,12 +24,14 @@ FILENAME = "smw1.state"
   NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.25)
 
   --crossover parameters
-  CROSSOVER_SPAN = 10 -- n*m /CROSSOVER_SPAN = span
+  CROSSOVER_SECTION_1 = 0.2 --n*m * CROSSOVER_SECTION_1 = span
+  CROSSOVER_SECTION_2 = 0.2 --n*m * CROSSOVER_SECTION_2 = span
+  CROSSOVER_SECTION_3 = 0.1 --n*m * CROSSOVER_SECTION_3 = span
 
   --crossover_2 parameters
   CROSSOVER_2_STRIDE = 3 --math.random(1,CROSSOVER_2_STRIDE)==1
   --mutate parameters
-  MUTATE_RANK_RATIO = 0.2
+  MUTATE_RANK_RATIO = 0.3
   MUTATE_WEIGHT_PROCENT = 0.05
 
   WEIGHT_LAYER_NR_1 = INPUTS*HIDDENNODES
@@ -283,9 +285,9 @@ FILENAME = "smw1.state"
   function crossover(genome_1_net,genome_2_net)
     local new_g_net = deep_copy_network_weights(genome_1_net)
     --local new_g_net = deepcopy(genome_1_net)
-    local span1 = math.floor((INPUTS*HIDDENNODES)/CROSSOVER_SPAN)
-    local span2 = math.floor((HIDDENNODES*HIDDENNODES)/CROSSOVER_SPAN)
-    local span3 = math.floor((HIDDENNODES*OUTPUTS)/CROSSOVER_SPAN)
+    local span1 = math.floor((INPUTS*HIDDENNODES)*CROSSOVER_SECTION_1)
+    local span2 = math.floor((HIDDENNODES*HIDDENNODES)*CROSSOVER_SECTION_2)
+    local span3 = math.floor((HIDDENNODES*OUTPUTS)*CROSSOVER_SECTION_3)
     local start_index_1 = math.random(1, (INPUTS*HIDDENNODES)-span1)
     local start_index_2 = math.random(1, (HIDDENNODES*HIDDENNODES)-span2)
     local start_index_3 = math.random(1, (HIDDENNODES*OUTPUTS)-span3)
@@ -368,11 +370,11 @@ FILENAME = "smw1.state"
         if cross_choice == 1 then
           pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         elseif cross_choice == 2 then
-          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
+          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         elseif cross_choice == 3 then
-          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[1].network,pop_evolve.individuals[i].network)
+          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[1].network,pop_evolve_2.individuals[i].network)
         else
-          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[i].network,pop_evolve.individuals[id2].network)
+          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[i].network,pop_evolve_2.individuals[id2].network)
         end
       end
     end
@@ -380,9 +382,9 @@ FILENAME = "smw1.state"
     --pop_evolve.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve.individuals[1].network)
     --mutate but skip best
     for i=2,POPULATION_NR do
-      pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
+      pop_evolve_2.individuals[i] = mutate(pop_evolve_2.individuals[i])
     end
-    return pop_evolve
+    return pop_evolve_2
   end
 
   function clear_joypad()
@@ -441,14 +443,14 @@ FILENAME = "smw1.state"
 
 function run_individual(invd_idx)
   local speed_bonus = 0
-  local time_out_const = 40
+  local time_out_const = 80
   local time_out = time_out_const
   local rightmost = 0
   local framecount = 0
   local score = 0
   savestate.load(FILENAME)
   while time_out > 0 do
-    clear_joypad()
+    --clear_joypad()
     if framecount%5==0 then
       local inputs = get_inputs()
       local outputs = evaluate_network(population.individuals[invd_idx].network,inputs)
@@ -512,6 +514,6 @@ end
       best_so_far = population.individuals[1].fitness
       print("-- New best: " .. population.individuals[1].id .. ", fitness: " .. best_so_far)
     end
-    population = evolve(population)
+    population = evolve_2(population)
     sleep(2)
   end
