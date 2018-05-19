@@ -1,5 +1,5 @@
---FILENAME = "DP1.state"
-FILENAME = "smw1.state"
+FILENAME = "DP1.state"
+--FILENAME = "smw1.state"
   BUTTONNAMES = {
     "A",
     "B",
@@ -16,23 +16,26 @@ FILENAME = "smw1.state"
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
   --GA CONFIG
-  POPULATION_NR = 100
+  POPULATION_NR = 100 --at least 10
 
 
   --evolve parameters
-  CROSSOVER_PROB_DEFAULT = 0.60
-  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.25)
+  CROSSOVER_PROB_DEFAULT = 0.70
+  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.05)
+  if NR_OF_PARENTS_TO_BREED_FROM < 2 then
+    NR_OF_PARENTS_TO_BREED_FROM = 2
+  end
 
   --crossover parameters
   CROSSOVER_SECTION_1 = 0.2 --n*m * CROSSOVER_SECTION_1 = span
   CROSSOVER_SECTION_2 = 0.2 --n*m * CROSSOVER_SECTION_2 = span
-  CROSSOVER_SECTION_3 = 0.1 --n*m * CROSSOVER_SECTION_3 = span
+  CROSSOVER_SECTION_3 = 0.2 --n*m * CROSSOVER_SECTION_3 = span
 
   --crossover_2 parameters
-  CROSSOVER_2_STRIDE = 3 --math.random(1,CROSSOVER_2_STRIDE)==1
+  CROSSOVER_2_STRIDE = 2 --math.random(1,CROSSOVER_2_STRIDE)==1
   --mutate parameters
-  MUTATE_RANK_RATIO = 0.3
-  MUTATE_WEIGHT_PROCENT = 0.05
+  MUTATE_RANK_RATIO = 0.2
+  MUTATE_WEIGHT_PROCENT = 0.1
 
   WEIGHT_LAYER_NR_1 = INPUTS*HIDDENNODES
   WEIGHT_LAYER_NR_2 = HIDDENNODES*HIDDENNODES
@@ -188,7 +191,6 @@ FILENAME = "smw1.state"
     for i=1,HIDDENNODES do
       for j=1,INPUTS-1 do --WHY -1???????????????????
         local current_in_value = network.input_neurons[j].value
-        --local current_weight_value = network.weights[1][j*HIDDENNODES+i]
         local current_weight_value = network.weights[1][(j-1)*HIDDENNODES+i]
         local old = network.hidden_layers[1][i].value
         network.hidden_layers[1][i].value = old + (current_in_value * current_weight_value)
@@ -200,7 +202,6 @@ FILENAME = "smw1.state"
     for i=1,HIDDENNODES do --l2
       for j=1,HIDDENNODES do --l1
         local current_in_value = network.hidden_layers[1][j].value
-        --local current_weight_value = network.weights[2][j*HIDDENNODES+i]
         local current_weight_value = network.weights[2][(j-1)*HIDDENNODES+i]
         local old = network.hidden_layers[2][i].value
         network.hidden_layers[2][i].value = old + (current_in_value * current_weight_value)
@@ -212,9 +213,9 @@ FILENAME = "smw1.state"
     for i=1,OUTPUTS do
       for j=1,HIDDENNODES do
         local current_in_value = network.hidden_layers[2][j].value
-        --local current_weight_value = network.weights[3][j*OUTPUTS+i]
         local current_weight_value = network.weights[3][(j-1)*OUTPUTS+i]
         local old = network.outputs[i].value
+        --local old = 0
         network.outputs[i].value = old + (current_in_value * current_weight_value)
       end
       network.outputs[i].value = sigmoid(network.outputs[i].value)
@@ -229,6 +230,14 @@ FILENAME = "smw1.state"
       else
         outputs[button] = false
       end
+    end
+    --reset values
+    for i=1,#network.hidden_layers[1] do
+      network.hidden_layers[1][i].value =0.0
+      network.hidden_layers[2][i].value =0.0
+    end
+    for i=1,#network.outputs do
+      network.outputs[i].value = 0.0
     end
     --return the current outputs
     return outputs
@@ -257,15 +266,38 @@ FILENAME = "smw1.state"
     return population
   end
 
+  function weight_sum(net_to_calc)
+    local sum = 0
+    for i=1,#net_to_calc.weights[1] do
+      sum = net_to_calc.weights[1][i] + sum
+    end
+    for i=1,#net_to_calc.weights[2] do
+      sum = net_to_calc.weights[2][i] + sum
+    end
+    for i=1,#net_to_calc.weights[3] do
+      sum = net_to_calc.weights[3][i] + sum
+    end
+    return sum
+  end
 
   function mutate(geno_to_mut)
     local mutprob = (geno_to_mut.rank+(POPULATION_NR*MUTATE_RANK_RATIO))/POPULATION_NR
     geno_to_mut.mutate_prob = mutprob
     if math.random() < mutprob then
-      local iter_nr_1 = math.floor(MUTATE_WEIGHT_PROCENT*(INPUTS*HIDDENNODES))
-      local iter_nr_2 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*HIDDENNODES))
-      local iter_nr_3 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*OUTPUTS))
+      local iter_nr_1 = math.floor(MUTATE_WEIGHT_PROCENT*(INPUTS*HIDDENNODES)) + geno_to_mut.same_fitness_count
+      local iter_nr_2 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*HIDDENNODES)) + geno_to_mut.same_fitness_count
+      local iter_nr_3 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*OUTPUTS)) + geno_to_mut.same_fitness_count
+      if iter_nr_1 < 1 then
+        iter_nr_1 = 1
+      end
+      if iter_nr_2 < 1 then
+        iter_nr_2 = 1
+      end
+      if iter_nr_3 < 1 then
+        iter_nr_3 = 1
+      end
       --print("mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
+      --print("iterationes:" ..iter_nr_1 ..", " .. iter_nr_2 ..  ", " .. iter_nr_3)
       for i=1,iter_nr_1 do
         local index_1 = math.random(1, (INPUTS*HIDDENNODES))
         geno_to_mut.network.weights[1][index_1] = math.random()*4-2
@@ -291,6 +323,15 @@ FILENAME = "smw1.state"
     local start_index_1 = math.random(1, (INPUTS*HIDDENNODES)-span1)
     local start_index_2 = math.random(1, (HIDDENNODES*HIDDENNODES)-span2)
     local start_index_3 = math.random(1, (HIDDENNODES*OUTPUTS)-span3)
+    if span1 < 1 then
+      span1 = 1
+    end
+    if span2 < 1 then
+      span2 = 1
+    end
+    if span3 < 1 then
+      span3 = 1
+    end
     --print("index",{start_index_1,start_index_2,start_index_3})
     for i=start_index_1,span1 do
       new_g_net.weights[1][i] = genome_2_net.weights[1][i]
@@ -324,36 +365,6 @@ FILENAME = "smw1.state"
     return new_g_net
   end
 
-  function evolve(pop_evolve)
-    --crossover
-    for i=NR_OF_PARENTS_TO_BREED_FROM+1,POPULATION_NR do
-      if math.random()<CROSSOVER_PROB_DEFAULT then
-        local id1 = math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
-        local id2 = math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
-        while id1==id2 do
-          id1=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
-          math.randomseed(i+os.clock())
-          id2=math.random(1,NR_OF_PARENTS_TO_BREED_FROM)
-        end
-        --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
-        if math.random(1, 2)==1 then
-          pop_evolve.individuals[i].network = crossover(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
-        elseif math.random(1, 2)==2 then
-          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[id1].network,pop_evolve.individuals[id2].network)
-        else
-          pop_evolve.individuals[i].network = crossover_2(pop_evolve.individuals[i].network,pop_evolve.individuals[id2].network)
-        end
-      end
-    end
-    --clone best to last position
-    --pop_evolve.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve.individuals[1].network)
-    --mutate but skip best
-    for i=2,POPULATION_NR do
-      pop_evolve.individuals[i] = mutate(pop_evolve.individuals[i])
-    end
-    return pop_evolve
-  end
-
   function evolve_2(pop_evolve_2)
     --crossover
     for i=NR_OF_PARENTS_TO_BREED_FROM+1,POPULATION_NR do
@@ -368,18 +379,18 @@ FILENAME = "smw1.state"
         --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
         local cross_choice = math.random(1, 4)
         if cross_choice == 1 then
-          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
+          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[1].network,pop_evolve_2.individuals[2].network)
         elseif cross_choice == 2 then
-          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
+          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         elseif cross_choice == 3 then
           pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[1].network,pop_evolve_2.individuals[i].network)
         else
-          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[i].network,pop_evolve_2.individuals[id2].network)
+          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         end
       end
     end
     --clone best to last position
-    --pop_evolve.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve.individuals[1].network)
+    pop_evolve_2.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve_2.individuals[1].network)
     --mutate but skip best
     for i=2,POPULATION_NR do
       pop_evolve_2.individuals[i] = mutate(pop_evolve_2.individuals[i])
@@ -418,17 +429,17 @@ FILENAME = "smw1.state"
 
   function deep_copy_network_weights(network_orig)
     local new_net = new_neural_network()
-    for i=1,INPUTS do
-      new_net.input_neurons[i].value = network_orig.input_neurons[i].value
-    end
-    for i=1,HIDDENLAYERS do
-      for j=1,HIDDENNODES do
-        new_net.hidden_layers[i][j].value = network_orig.hidden_layers[i][j].value
-      end
-    end
-    for i = 1,OUTPUTS do
-      new_net.outputs[i].value = network_orig.outputs[i].value
-    end
+    --for i=1,INPUTS do
+    --  new_net.input_neurons[i].value = network_orig.input_neurons[i].value
+    --end
+    --for i=1,HIDDENLAYERS do
+    --  for j=1,HIDDENNODES do
+    --    new_net.hidden_layers[i][j].value = network_orig.hidden_layers[i][j].value
+    --  end
+    --end
+    --for i = 1,OUTPUTS do
+    --  new_net.outputs[i].value = network_orig.outputs[i].value
+    --end
     for i=1,#network_orig.weights[1] do
       new_net.weights[1][i] = network_orig.weights[1][i]
     end
@@ -495,11 +506,17 @@ function print_update_fitness_rank()
   end
   print("-------------")
 end
+
+  function average_fitness_increase()
+
+    local message_list = {"Sorry...", "Please dont hurt us...","We'll try harder we promise!", "Why do you make us run?", "What is out purpose?"}
+  end
   -------------RUN----------------------
   population = new_population()
   old_average = 0
   best_so_far = 0
   controller = {}
+  generation_count = 1
   while true do
     for i=1,POPULATION_NR do
       clear_joypad()
@@ -513,7 +530,11 @@ end
     if population.individuals[1].fitness > best_so_far then
       best_so_far = population.individuals[1].fitness
       print("-- New best: " .. population.individuals[1].id .. ", fitness: " .. best_so_far)
+      print("with weight sum:", weight_sum(population.individuals[1].network))
     end
     population = evolve_2(population)
+    generation_count = generation_count + 1
+    print("preparing generation " .. generation_count .. "...")
+    print("rank 1 weight sum:", weight_sum(population.individuals[1].network))
     sleep(2)
   end
