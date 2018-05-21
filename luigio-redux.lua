@@ -1,5 +1,5 @@
-FILENAME = "DP1.state"
---FILENAME = "smw1.state"
+--FILENAME = "DP1.state"
+FILENAME = "smw1.state"
   BUTTONNAMES = {
     "A",
     "B",
@@ -12,7 +12,7 @@ FILENAME = "DP1.state"
   --ANN CONFIG
   INPUTS = INPUTSIZE+1
   OUTPUTS = #BUTTONNAMES
-  HIDDENNODES = 20
+  HIDDENNODES = 10
   HIDDENLAYERS = 2
   LAYERS = HIDDENLAYERS + 2
   --GA CONFIG
@@ -20,22 +20,23 @@ FILENAME = "DP1.state"
 
 
   --evolve parameters
-  CROSSOVER_PROB_DEFAULT = 0.70
-  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.05)
+  CROSSOVER_PROB_DEFAULT = 0.60
+  NR_OF_PARENTS_TO_BREED_FROM = math.floor(POPULATION_NR*0.1)
   if NR_OF_PARENTS_TO_BREED_FROM < 2 then
     NR_OF_PARENTS_TO_BREED_FROM = 2
   end
 
   --crossover parameters
-  CROSSOVER_SECTION_1 = 0.2 --n*m * CROSSOVER_SECTION_1 = span
-  CROSSOVER_SECTION_2 = 0.2 --n*m * CROSSOVER_SECTION_2 = span
-  CROSSOVER_SECTION_3 = 0.2 --n*m * CROSSOVER_SECTION_3 = span
+  CROSSOVER_SECTION_1 = 0.1 --n*m * CROSSOVER_SECTION_1 = span
+  CROSSOVER_SECTION_2 = 0.1 --n*m * CROSSOVER_SECTION_2 = span
+  CROSSOVER_SECTION_3 = 0.1 --n*m * CROSSOVER_SECTION_3 = span
 
   --crossover_2 parameters
-  CROSSOVER_2_STRIDE = 2 --math.random(1,CROSSOVER_2_STRIDE)==1
+  CROSSOVER_2_STRIDE = 3 --math.random(1,CROSSOVER_2_STRIDE)==1
   --mutate parameters
-  MUTATE_RANK_RATIO = 0.2
+  MUTATE_RANK_RATIO = 0.1
   MUTATE_WEIGHT_PROCENT = 0.1
+  --STALE_FITNESS_MULIPLIER = 5
 
   WEIGHT_LAYER_NR_1 = INPUTS*HIDDENNODES
   WEIGHT_LAYER_NR_2 = HIDDENNODES*HIDDENNODES
@@ -284,9 +285,10 @@ FILENAME = "DP1.state"
     local mutprob = (geno_to_mut.rank+(POPULATION_NR*MUTATE_RANK_RATIO))/POPULATION_NR
     geno_to_mut.mutate_prob = mutprob
     if math.random() < mutprob then
-      local iter_nr_1 = math.floor(MUTATE_WEIGHT_PROCENT*(INPUTS*HIDDENNODES)) + geno_to_mut.same_fitness_count
-      local iter_nr_2 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*HIDDENNODES)) + geno_to_mut.same_fitness_count
-      local iter_nr_3 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*OUTPUTS)) + geno_to_mut.same_fitness_count
+      local sfc = geno_to_mut.same_fitness_count
+      local iter_nr_1 = math.floor(MUTATE_WEIGHT_PROCENT*(INPUTS*HIDDENNODES)) + (sfc * sfc)
+      local iter_nr_2 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*HIDDENNODES)) + (sfc * sfc)
+      local iter_nr_3 = math.floor(MUTATE_WEIGHT_PROCENT*(HIDDENNODES*OUTPUTS)) + (sfc * sfc)
       if iter_nr_1 < 1 then
         iter_nr_1 = 1
       end
@@ -296,7 +298,7 @@ FILENAME = "DP1.state"
       if iter_nr_3 < 1 then
         iter_nr_3 = 1
       end
-      --print("mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
+      --print("m1 mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
       --print("iterationes:" ..iter_nr_1 ..", " .. iter_nr_2 ..  ", " .. iter_nr_3)
       for i=1,iter_nr_1 do
         local index_1 = math.random(1, (INPUTS*HIDDENNODES))
@@ -308,6 +310,47 @@ FILENAME = "DP1.state"
       end
       for i=1,iter_nr_3 do
         local index_3 = math.random(1, (HIDDENNODES*OUTPUTS))
+        geno_to_mut.network.weights[3][index_3] = math.random()*4-2
+      end
+    end
+    return geno_to_mut
+  end
+
+  function mutate_2(geno_to_mut)
+    local mutprob = (geno_to_mut.rank+(POPULATION_NR*MUTATE_RANK_RATIO))/POPULATION_NR
+    geno_to_mut.mutate_prob = mutprob
+    if math.random() < mutprob then
+      local sfc = geno_to_mut.same_fitness_count
+      local iter_nr_1 = math.floor(math.random()*(INPUTS*HIDDENNODES)) + (sfc * sfc)
+      local iter_nr_2 = math.floor(math.random()*(HIDDENNODES*HIDDENNODES)) + (sfc * sfc)
+      local iter_nr_3 = math.floor(math.random()*(HIDDENNODES*OUTPUTS)) + (sfc * sfc)
+      if iter_nr_1 < 1 then
+        iter_nr_1 = 1
+      end
+      if iter_nr_2 < 1 then
+        iter_nr_2 = 1
+      end
+      if iter_nr_3 < 1 then
+        iter_nr_3 = 1
+      end
+      --print("m2 mutating rank:" .. geno_to_mut.rank ..", " .. geno_to_mut.id ..  ", prob: " .. mutprob)
+      --print("iterationes:" ..iter_nr_1 ..", " .. iter_nr_2 ..  ", " .. iter_nr_3)
+      for i=1,iter_nr_1 do
+        --math.randomseed(i+os.clock())
+        local index_1 = math.random(1, (INPUTS*HIDDENNODES))
+        --math.randomseed(i+i+os.clock())
+        geno_to_mut.network.weights[1][index_1] = math.random()*4-2
+      end
+      for i=1,iter_nr_2 do
+        --math.randomseed(i+i+os.clock())
+        local index_2 = math.random(1, (HIDDENNODES*HIDDENNODES))
+        --math.randomseed(i+i+i+os.clock())
+        geno_to_mut.network.weights[2][index_2] = math.random()*4-2
+      end
+      for i=1,iter_nr_3 do
+        --math.randomseed(i+i+i+i+os.clock())
+        local index_3 = math.random(1, (HIDDENNODES*OUTPUTS))
+        --math.randomseed(i+i+i+i+i+os.clock())
         geno_to_mut.network.weights[3][index_3] = math.random()*4-2
       end
     end
@@ -379,11 +422,11 @@ FILENAME = "DP1.state"
         --print("crossover: " .. pop_evolve.individuals[i].rank .. "<--" .. pop_evolve.individuals[id1].rank .. ", " .. pop_evolve.individuals[id2].rank)
         local cross_choice = math.random(1, 4)
         if cross_choice == 1 then
-          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[1].network,pop_evolve_2.individuals[2].network)
+          pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[i].network)
         elseif cross_choice == 2 then
           pop_evolve_2.individuals[i].network = crossover(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         elseif cross_choice == 3 then
-          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[1].network,pop_evolve_2.individuals[i].network)
+          pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[i].network)
         else
           pop_evolve_2.individuals[i].network = crossover_2(pop_evolve_2.individuals[id1].network,pop_evolve_2.individuals[id2].network)
         end
@@ -393,7 +436,11 @@ FILENAME = "DP1.state"
     pop_evolve_2.individuals[POPULATION_NR].network = deep_copy_network_weights(pop_evolve_2.individuals[1].network)
     --mutate but skip best
     for i=2,POPULATION_NR do
-      pop_evolve_2.individuals[i] = mutate(pop_evolve_2.individuals[i])
+      if math.random(1, 2)==1 then
+        pop_evolve_2.individuals[i] = mutate(pop_evolve_2.individuals[i])
+      else
+        pop_evolve_2.individuals[i] = mutate_2(pop_evolve_2.individuals[i])
+      end
     end
     return pop_evolve_2
   end
@@ -452,6 +499,8 @@ FILENAME = "DP1.state"
     return new_net
   end
 
+
+
 function run_individual(invd_idx)
   local speed_bonus = 0
   local time_out_const = 80
@@ -461,6 +510,7 @@ function run_individual(invd_idx)
   local score = 0
   savestate.load(FILENAME)
   while time_out > 0 do
+    print_fitness()
     --clear_joypad()
     if framecount%5==0 then
       local inputs = get_inputs()
@@ -486,6 +536,10 @@ function run_individual(invd_idx)
     time_out = time_out-1
     speed_bonus= math.floor(mario_x/framecount)
     population.individuals[invd_idx].fitness= mario_x + speed_bonus
+    if rightmost > 4816 then
+      print("Winner!")
+      population.individuals[invd_idx].fitness = 10000
+    end
     framecount=framecount+1
     emu.frameadvance()
   end
@@ -507,16 +561,47 @@ function print_update_fitness_rank()
   print("-------------")
 end
 
-  function average_fitness_increase()
+  function average_fitness(nr_of_p)
+    local avrg = 0
+    for i=1,nr_of_p do
+      avrg = avrg + population.individuals[i].fitness
+    end
+    avrg = avrg/nr_of_p
+    return avrg
+  end
 
-    local message_list = {"Sorry...", "Please dont hurt us...","We'll try harder we promise!", "Why do you make us run?", "What is out purpose?"}
+  function print_fitness()
+    local x_axis_span = 100
+    local y_axis_span = 100
+    local x1 = 0
+    local x2 = x1 + x_axis_span
+    local y1 = 0
+    local y2 = y1 + y_axis_span
+    local max_x = best_so_far
+    gui.drawBox(x1,y1,x2,y2,0xD0FFFFFF,0xD0FFFFFF)
+    x_step = math.floor(x_axis_span/generation_count)
+    if x_step < 1 then
+      x_step=1
+    end
+    local cord_prev_x = x1
+    local cord_prev_y = y2
+    for i=1,generation_count do
+      local cord_2_x = x1 + (i*x_step)
+      local cord_2_y = y2 - math.floor(y_axis_span * (fitness_values[i]/best_so_far))
+      gui.drawLine(cord_prev_x, cord_prev_y, cord_2_x, cord_2_y,"black")
+      cord_prev_x = x1 + (i*x_step)
+      cord_prev_y = math.floor(y2 - (y_axis_span * (fitness_values[i]/best_so_far)))
+    end
+
+    --gui.DrawFinish()
   end
   -------------RUN----------------------
   population = new_population()
   old_average = 0
-  best_so_far = 0
+  best_so_far = 1
   controller = {}
   generation_count = 1
+  fitness_values = {1}
   while true do
     for i=1,POPULATION_NR do
       clear_joypad()
@@ -532,6 +617,10 @@ end
       print("-- New best: " .. population.individuals[1].id .. ", fitness: " .. best_so_far)
       print("with weight sum:", weight_sum(population.individuals[1].network))
     end
+    fitness_values[#fitness_values+1] = average_fitness(NR_OF_PARENTS_TO_BREED_FROM)
+    --for i=1,#fitness_values do
+    --  print(fitness_values[i])
+    --end
     population = evolve_2(population)
     generation_count = generation_count + 1
     print("preparing generation " .. generation_count .. "...")
