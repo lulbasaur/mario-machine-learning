@@ -573,12 +573,15 @@ end
   function print_fitness()
     local x_axis_span = 100
     local y_axis_span = 100
-    local x1 = 0
+    local x1 = 2
     local x2 = x1 + x_axis_span
-    local y1 = 0
+    local y1 = 8
     local y2 = y1 + y_axis_span
     local max_x = best_so_far
-    gui.drawBox(x1,y1,x2,y2,0xD0FFFFFF,0xD0FFFFFF)
+    gui.drawBox(0,0,120,115,0xD0FFFFFF,0xD0FFFFFF)
+    gui.drawLine(x1, y1, x1, y2,"black")
+    gui.drawLine(x1, y2, x2, y2,"black")
+    gui.drawText(6, 0, "best:" .. best_so_far, "blue", 0, 10)
     x_step = math.floor(x_axis_span/generation_count)
     if x_step < 1 then
       x_step=1
@@ -589,11 +592,35 @@ end
       local cord_2_x = x1 + (i*x_step)
       local cord_2_y = y2 - math.floor(y_axis_span * (fitness_values[i]/best_so_far))
       gui.drawLine(cord_prev_x, cord_prev_y, cord_2_x, cord_2_y,"black")
+      if generation_count < 10 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+      elseif i%5==0 and i<50 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+      elseif i%10==0 and i<100 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+      end
       cord_prev_x = x1 + (i*x_step)
       cord_prev_y = math.floor(y2 - (y_axis_span * (fitness_values[i]/best_so_far)))
     end
-
-    --gui.DrawFinish()
+    cord_prev_x = x1
+    cord_prev_y = y2
+    for i=1,generation_count do
+      local cord_2_x = x1 + (i*x_step)
+      local cord_2_y = y2 - math.floor(y_axis_span * (best_fitness_values[i]/best_so_far))
+      gui.drawLine(cord_prev_x, cord_prev_y, cord_2_x, cord_2_y,"red")
+      if generation_count < 10 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+        gui.drawText(cord_2_x, cord_2_y, "g" .. i, "blue", 0, 10)
+      elseif i%5==0 and i<50 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+        gui.drawText(cord_2_x, cord_2_y, "g" .. i, "blue", 0, 10)
+      elseif i%10==0 and i<101 then
+        gui.drawEllipse(cord_2_x, cord_2_y, 2, 2, "green", "green")
+        gui.drawText(cord_2_x, cord_2_y, "g" .. i, "blue", 0, 10)
+      end
+      cord_prev_x = x1 + (i*x_step)
+      cord_prev_y = math.floor(y2 - (y_axis_span * (best_fitness_values[i]/best_so_far)))
+    end
   end
   -------------RUN----------------------
   population = new_population()
@@ -602,6 +629,7 @@ end
   controller = {}
   generation_count = 1
   fitness_values = {1}
+  best_fitness_values = {1}
   while true do
     for i=1,POPULATION_NR do
       clear_joypad()
@@ -615,15 +643,16 @@ end
     if population.individuals[1].fitness > best_so_far then
       best_so_far = population.individuals[1].fitness
       print("-- New best: " .. population.individuals[1].id .. ", fitness: " .. best_so_far)
-      print("with weight sum:", weight_sum(population.individuals[1].network))
+      --print("with weight sum:", weight_sum(population.individuals[1].network))
     end
     fitness_values[#fitness_values+1] = average_fitness(NR_OF_PARENTS_TO_BREED_FROM)
+    best_fitness_values[#best_fitness_values+1]= best_so_far
     --for i=1,#fitness_values do
     --  print(fitness_values[i])
     --end
     population = evolve_2(population)
     generation_count = generation_count + 1
     print("preparing generation " .. generation_count .. "...")
-    print("rank 1 weight sum:", weight_sum(population.individuals[1].network))
+    --print("rank 1 weight sum:", weight_sum(population.individuals[1].network))
     sleep(2)
   end
