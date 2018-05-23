@@ -631,6 +631,10 @@ end
   fitness_values = {1}
   best_fitness_values = {1}
   while true do
+  local fitnessFile = io.open("fitnessFile.txt", "a")
+  fitnessFile:write("Gen" .. generation_count .. "\n")
+  fitnessFile:write("Max" .. best_so_far .. "\n")
+  fitnessFile:close()
     for i=1,POPULATION_NR do
       clear_joypad()
       print("running individual:", population.individuals[i].id)
